@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 chrono = "0.4.38"
+reqwest = {version = "0.12.5", features = ["json"]}
 
 # Axum
 axum = "0.7.5"

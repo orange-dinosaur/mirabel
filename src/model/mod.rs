@@ -2,6 +2,7 @@ use crate::{db::connect_to_db, error::Result};
 use sea_orm::DatabaseConnection;
 
 pub mod books;
+pub mod books_api;
 
 #[derive(Clone)]
 pub struct ModelManager {

@@ -1,55 +1,32 @@
 use axum::{
-    extract::{Path, Query, State},
-    routing::{delete, post},
+    extract::{Path, State},
+    routing::{delete, get, post},
     Json, Router,
 };
 use chrono::Utc;
 use sea_orm::{
-    entity::prelude::Uuid, ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter,
+    entity::prelude::Uuid, ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, ModelTrait,
+    QueryFilter,
 };
-use serde::Deserialize;
 
 use crate::{
     entities::books::{self},
     error::Result,
-    model::ModelManager,
+    model::{
+        books::{BookFull, BookToSave, BookToUpdate, UserBooks},
+        books_api::BooksApiResponse,
+        ModelManager,
+    },
+    Error,
 };
 
 pub fn books_routes(model_manager: ModelManager) -> Router {
     Router::new()
         .route("/books", post(save_book))
-        .route("/books/:id", post(update_book))
-        .route("/books/:id", delete(delete_book))
+        .route("/books/:user_id", get(get_user_books))
+        .route("/books/:user_id/:id", post(update_book))
+        .route("/books/:user_id/:id", delete(delete_book))
         .with_state(model_manager)
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct BookToSave {
-    book_id: String,
-    user_id: String,
-    reading_status: Option<String>,
-    book_type: Option<String>,
-    tags: Option<Vec<String>>,
-    rating: Option<f32>,
-    notes: Option<String>,
-    library_id: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct BookToUpdate {
-    reading_status: Option<String>,
-    book_type: Option<String>,
-    tags: Option<Vec<String>>,
-    rating: Option<f32>,
-    notes: Option<String>,
-    library_id: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BookParams {
-    user_id: String,
 }
 
 async fn save_book(
@@ -87,27 +64,97 @@ async fn save_book(
     };
 
     // Save the book in the database
-    let book: books::Model = book.insert(model_manager.db()).await.unwrap();
+    let book = book.insert(model_manager.db()).await;
+    match book {
+        Ok(book) => Ok(format!("Book saved: {:?}", book)),
+        Err(e) => Err(Error::DbError(e)),
+    }
+}
 
-    Ok(format!("Book saved: {:?}", book))
+async fn get_user_books(
+    State(model_manager): State<ModelManager>,
+    Path(user_id): Path<String>,
+) -> Result<String> {
+    println!("--> {:<12} - get_user_books - ", "GET");
+
+    let db_res = books::Entity::find()
+        .filter(books::Column::UserId.eq(user_id.clone()))
+        .all(model_manager.db())
+        .await;
+
+    let books = if let Ok(books) = db_res {
+        books
+    } else {
+        return Err(Error::InternalServerError);
+    };
+
+    // loop through the books and get the full book info from the external API
+    let mut user_books = UserBooks::from_user_id(user_id.clone());
+    for book in books.iter() {
+        let book_id = book.book_id.clone();
+
+        let external_books_api_url = match std::env::var("EXTERNAL_BOOKS_API_URL") {
+            Ok(external_books_api_url) => external_books_api_url,
+            Err(_) => {
+                return Err(Error::MissingEnvVar(
+                    "missing env var: EXTERNAL_BOOKS_API_URL".to_string(),
+                ));
+            }
+        };
+        let url = external_books_api_url + "/" + &book_id;
+
+        let res = reqwest::get(&url).await;
+        match res {
+            Ok(res) => {
+                let book_api = res.json::<BooksApiResponse>().await;
+                match book_api {
+                    Ok(book_api) => {
+                        user_books.add_book(BookFull::from_db_and_api(book.clone(), book_api)?);
+                    }
+                    Err(e) => {
+                        return Err(Error::ParseError(e.to_string()));
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(Error::ExternalApiError(e.to_string()));
+            }
+        }
+    }
+
+    Ok(format!("User Books: {:?}", user_books))
 }
 
 async fn update_book(
     State(model_manager): State<ModelManager>,
-    Path(id): Path<String>,
-    Query(params): Query<BookParams>,
+    Path((user_id, id)): Path<(String, String)>,
     Json(book_to_update): Json<BookToUpdate>,
 ) -> Result<String> {
     println!("--> {:<12} - update_book - ", "UPDATE");
 
-    let book = books::Entity::find_by_id(Uuid::parse_str(&id).unwrap())
-        .one(model_manager.db())
-        .await
-        .unwrap();
+    // check if the id can be parsed into a Uuid
+    let id_to_search = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(_) => return Err(Error::ParseError("Invalid id".to_string())),
+    };
 
-    // check if the user owner of the book is the same one of the call
-    if book.as_ref().unwrap().user_id != params.user_id {
-        // return error
+    let db_res = books::Entity::find_by_id(id_to_search)
+        .one(model_manager.db())
+        .await;
+    let book = if let Ok(book) = db_res {
+        book
+    } else {
+        return Err(Error::DbError(db_res.unwrap_err()));
+    };
+
+    match book.clone() {
+        None => return Err(Error::NotFound),
+        Some(b) => {
+            // check if the user owner of the book is the same one of the call
+            if b.user_id != user_id {
+                return Err(Error::Unathorized);
+            }
+        }
     }
 
     // transofrm the book into an ActiveModel so it can be updated
@@ -134,24 +181,47 @@ async fn update_book(
         book.library_id = ActiveValue::Set(Some(library_id));
     };
 
-    let book = book.update(model_manager.db()).await.unwrap();
-
-    Ok(format!("Book updated: {:?}", book))
+    let book = book.update(model_manager.db()).await;
+    match book {
+        Ok(book) => Ok(format!("Book updated: {:?}", book)),
+        Err(e) => Err(Error::DbError(e)),
+    }
 }
 
 async fn delete_book(
     State(model_manager): State<ModelManager>,
-    Path(id): Path<String>,
-    Query(params): Query<BookParams>,
+    Path((user_id, id)): Path<(String, String)>,
 ) -> Result<String> {
     println!("--> {:<12} - delete_book - ", "DELETE");
 
-    let res = books::Entity::delete_many()
-        .filter(books::Column::Id.eq(Uuid::parse_str(&id).unwrap()))
-        .filter(books::Column::UserId.eq(params.user_id.to_string()))
-        .exec(model_manager.db())
-        .await
-        .unwrap();
+    // check if the id can be parsed into a Uuid
+    let id_to_search = match Uuid::parse_str(&id) {
+        Ok(id) => id,
+        Err(_) => return Err(Error::ParseError("Invalid id".to_string())),
+    };
 
-    Ok(format!("Book deleted: {:?}", res))
+    let book = books::Entity::find_by_id(id_to_search)
+        .one(model_manager.db())
+        .await;
+    let book = match book {
+        Ok(book) => {
+            if let Some(book) = book {
+                book
+            } else {
+                return Err(Error::NotFound);
+            }
+        }
+        Err(e) => return Err(Error::DbError(e)),
+    };
+
+    // check if the user owner of the book is the same one of the call
+    if book.user_id != user_id {
+        return Err(Error::Unathorized);
+    }
+
+    let res = book.delete(model_manager.db()).await;
+    match res {
+        Ok(res) => Ok(format!("Book deleted result: {:?}", res)),
+        Err(e) => Err(Error::DbError(e)),
+    }
 }

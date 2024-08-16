@@ -7,7 +7,7 @@ pub async fn connect_to_db() -> Result<DatabaseConnection> {
 
     let db_url = match env::var_os("DATABASE_URL") {
         Some(v) => v.into_string().unwrap(),
-        None => panic!("$DATABASE_URL is not set"),
+        None => panic!("missing env var: $DATABASE_URL"),
     };
 
     // To configure the connection the ConnectOptions interface can be used:
