@@ -21,7 +21,9 @@ pub async fn connect_to_db() -> Result<DatabaseConnection> {
     //    .sqlx_logging(true)
     //    .sqlx_logging_level(log::LevelFilter::Info)
     //    .set_schema_search_path("my_schema"); // Setting default PostgreSQL schema
-    let db = Database::connect(db_url).await.map_err(Error::DbError)?;
+    let db = Database::connect(db_url)
+        .await
+        .map_err(|e| Error::DbError(e.to_string()))?;
 
     Ok(db)
 }

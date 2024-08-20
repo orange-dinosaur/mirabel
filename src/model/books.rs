@@ -1,14 +1,17 @@
-use serde::Deserialize;
+use chrono::Utc;
+use sea_orm::ActiveValue;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
-    entities::books::Model,
+    entities::books::{ActiveModel, Model},
     error::{Error, Result},
 };
 
 use super::books_api::BooksApiResponse;
 
 // region - BookToSave
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookToSave {
     pub book_id: String,
@@ -20,10 +23,44 @@ pub struct BookToSave {
     pub notes: Option<String>,
     pub library_id: Option<String>,
 }
+
+impl BookToSave {
+    pub fn to_active_model(&self) -> ActiveModel {
+        let mut book_to_save = ActiveModel {
+            id: ActiveValue::Set(Uuid::new_v4()),
+            created_at: ActiveValue::set(Some(Utc::now().naive_utc())),
+            book_id: ActiveValue::Set(self.book_id.clone()),
+            user_id: ActiveValue::Set(self.user_id.clone()),
+            ..Default::default()
+        };
+
+        // check if the optional fields are set and update the active model
+        if let Some(reading_status) = self.reading_status.clone() {
+            book_to_save.reading_status = ActiveValue::Set(Some(reading_status));
+        };
+        if let Some(book_type) = self.book_type.clone() {
+            book_to_save.book_type = ActiveValue::Set(Some(book_type));
+        };
+        if let Some(tags) = self.tags.clone() {
+            book_to_save.tags = ActiveValue::Set(Some(tags));
+        };
+        if let Some(rating) = self.rating {
+            book_to_save.rating = ActiveValue::Set(Some(rating as f64));
+        };
+        if let Some(notes) = self.notes.clone() {
+            book_to_save.notes = ActiveValue::Set(Some(notes));
+        };
+        if let Some(library_id) = self.library_id.clone() {
+            book_to_save.library_id = ActiveValue::Set(Some(library_id));
+        };
+
+        book_to_save
+    }
+}
 // endregion - BookToSave
 
 // region - BookToUpdate
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookToUpdate {
     pub reading_status: Option<String>,
@@ -33,10 +70,40 @@ pub struct BookToUpdate {
     pub notes: Option<String>,
     pub library_id: Option<String>,
 }
+
+impl BookToUpdate {
+    pub fn to_active_model(&self, db_book: Option<Model>) -> ActiveModel {
+        // transofrm the book into an ActiveModel so it can be updated
+        let mut book_to_update: ActiveModel = db_book.unwrap().into();
+
+        book_to_update.updated_at = ActiveValue::set(Some(Utc::now().naive_utc()));
+        // check if the optional fields are set and update the active model accordingly
+        if let Some(reading_status) = self.reading_status.clone() {
+            book_to_update.reading_status = ActiveValue::Set(Some(reading_status));
+        };
+        if let Some(book_type) = self.book_type.clone() {
+            book_to_update.book_type = ActiveValue::Set(Some(book_type));
+        };
+        if let Some(tags) = self.tags.clone() {
+            book_to_update.tags = ActiveValue::Set(Some(tags));
+        };
+        if let Some(rating) = self.rating {
+            book_to_update.rating = ActiveValue::Set(Some(rating as f64));
+        };
+        if let Some(notes) = self.notes.clone() {
+            book_to_update.notes = ActiveValue::Set(Some(notes));
+        };
+        if let Some(library_id) = self.library_id.clone() {
+            book_to_update.library_id = ActiveValue::Set(Some(library_id));
+        };
+
+        book_to_update
+    }
+}
 // endregion - BookToUpdate
 
 // region - BookFull
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub struct BookFull {
@@ -126,7 +193,7 @@ impl BookFull {
 // endregion - BookFull
 
 // region - UserBooks
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserBooks {
     user_id: String,

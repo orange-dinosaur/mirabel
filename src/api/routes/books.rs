@@ -3,14 +3,14 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use chrono::Utc;
+
 use sea_orm::{
-    entity::prelude::Uuid, ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, ModelTrait,
-    QueryFilter,
+    entity::prelude::Uuid, ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter,
 };
 
 use crate::{
-    entities::books::{self},
+    api::response::Response,
+    entities::books::{self, Model},
     error::Result,
     model::{
         books::{BookFull, BookToSave, BookToUpdate, UserBooks},
@@ -32,49 +32,32 @@ pub fn books_routes(model_manager: ModelManager) -> Router {
 async fn save_book(
     State(model_manager): State<ModelManager>,
     Json(book_to_save): Json<BookToSave>,
-) -> Result<String> {
+) -> Result<Json<Response<Model>>> {
     println!("--> {:<12} - save_book - ", "POST");
 
-    let mut book = books::ActiveModel {
-        id: ActiveValue::Set(Uuid::new_v4()),
-        created_at: ActiveValue::set(Some(Utc::now().naive_utc())),
-        book_id: ActiveValue::Set(book_to_save.book_id),
-        user_id: ActiveValue::Set(book_to_save.user_id),
-        ..Default::default()
-    };
-
-    // check if the optional fields are set and update the active model
-    if let Some(reading_status) = book_to_save.reading_status {
-        book.reading_status = ActiveValue::Set(Some(reading_status));
-    };
-    if let Some(book_type) = book_to_save.book_type {
-        book.book_type = ActiveValue::Set(Some(book_type));
-    };
-    if let Some(tags) = book_to_save.tags {
-        book.tags = ActiveValue::Set(Some(tags));
-    };
-    if let Some(rating) = book_to_save.rating {
-        book.rating = ActiveValue::Set(Some(rating as f64));
-    };
-    if let Some(notes) = book_to_save.notes {
-        book.notes = ActiveValue::Set(Some(notes));
-    };
-    if let Some(library_id) = book_to_save.library_id {
-        book.library_id = ActiveValue::Set(Some(library_id));
-    };
+    let book = book_to_save.to_active_model();
 
     // Save the book in the database
     let book = book.insert(model_manager.db()).await;
     match book {
-        Ok(book) => Ok(format!("Book saved: {:?}", book)),
-        Err(e) => Err(Error::DbError(e)),
+        Ok(b) => {
+            // return the book created
+
+            let res = Response::<Model>::new_success(
+                201,
+                Some("Book created successfully!".to_string()),
+                Some(b),
+            );
+            Ok(Json(res))
+        }
+        Err(e) => Err(Error::DbError(e.to_string())),
     }
 }
 
 async fn get_user_books(
     State(model_manager): State<ModelManager>,
     Path(user_id): Path<String>,
-) -> Result<String> {
+) -> Result<Json<Response<UserBooks>>> {
     println!("--> {:<12} - get_user_books - ", "GET");
 
     let db_res = books::Entity::find()
@@ -122,14 +105,15 @@ async fn get_user_books(
         }
     }
 
-    Ok(format!("User Books: {:?}", user_books))
+    let res = Response::new_success(200, None, Some(user_books));
+    Ok(Json(res))
 }
 
 async fn update_book(
     State(model_manager): State<ModelManager>,
     Path((user_id, id)): Path<(String, String)>,
     Json(book_to_update): Json<BookToUpdate>,
-) -> Result<String> {
+) -> Result<Json<Response<String>>> {
     println!("--> {:<12} - update_book - ", "UPDATE");
 
     // check if the id can be parsed into a Uuid
@@ -144,7 +128,7 @@ async fn update_book(
     let book = if let Ok(book) = db_res {
         book
     } else {
-        return Err(Error::DbError(db_res.unwrap_err()));
+        return Err(Error::DbError(db_res.unwrap_err().to_string()));
     };
 
     match book.clone() {
@@ -157,41 +141,25 @@ async fn update_book(
         }
     }
 
-    // transofrm the book into an ActiveModel so it can be updated
-    let mut book: books::ActiveModel = book.unwrap().into();
-
-    book.updated_at = ActiveValue::set(Some(Utc::now().naive_utc()));
-    // check if the optional fields are set and update the active model accordingly
-    if let Some(reading_status) = book_to_update.reading_status {
-        book.reading_status = ActiveValue::Set(Some(reading_status));
-    };
-    if let Some(book_type) = book_to_update.book_type {
-        book.book_type = ActiveValue::Set(Some(book_type));
-    };
-    if let Some(tags) = book_to_update.tags {
-        book.tags = ActiveValue::Set(Some(tags));
-    };
-    if let Some(rating) = book_to_update.rating {
-        book.rating = ActiveValue::Set(Some(rating as f64));
-    };
-    if let Some(notes) = book_to_update.notes {
-        book.notes = ActiveValue::Set(Some(notes));
-    };
-    if let Some(library_id) = book_to_update.library_id {
-        book.library_id = ActiveValue::Set(Some(library_id));
-    };
-
-    let book = book.update(model_manager.db()).await;
+    let b = book_to_update.to_active_model(book);
+    let book = b.update(model_manager.db()).await;
     match book {
-        Ok(book) => Ok(format!("Book updated: {:?}", book)),
-        Err(e) => Err(Error::DbError(e)),
+        Ok(_) => {
+            let res = Response::<String>::new_success(
+                200,
+                Some("Book updated successfully!".to_string()),
+                None,
+            );
+            Ok(Json(res))
+        }
+        Err(e) => Err(Error::DbError(e.to_string())),
     }
 }
 
 async fn delete_book(
     State(model_manager): State<ModelManager>,
     Path((user_id, id)): Path<(String, String)>,
-) -> Result<String> {
+) -> Result<Json<Response<String>>> {
     println!("--> {:<12} - delete_book - ", "DELETE");
 
     // check if the id can be parsed into a Uuid
@@ -211,7 +179,7 @@ async fn delete_book(
                 return Err(Error::NotFound);
             }
         }
-        Err(e) => return Err(Error::DbError(e)),
+        Err(e) => return Err(Error::DbError(e.to_string())),
     };
 
     // check if the user owner of the book is the same one of the call
@@ -221,7 +189,14 @@ async fn delete_book(
 
     let res = book.delete(model_manager.db()).await;
     match res {
-        Ok(res) => Ok(format!("Book deleted result: {:?}", res)),
-        Err(e) => Err(Error::DbError(e)),
+        Ok(_) => {
+            let res = Response::<String>::new_success(
+                200,
+                Some("Book deleted successfully!".to_string()),
+                None,
+            );
+            Ok(Json(res))
+        }
+        Err(e) => Err(Error::DbError(e.to_string())),
     }
 }

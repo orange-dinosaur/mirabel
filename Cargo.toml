@@ -7,6 +7,7 @@ edition = "2021"
 tokio = { version = "1", features = ["full"] }
 chrono = "0.4.38"
 reqwest = {version = "0.12.5", features = ["json"]}
+strum_macros = "0.26.4"
 
 # Axum
 axum = "0.7.5"
@@ -19,3 +20,4 @@ uuid = { version = "1.10.0", features = ["v4"] }
 # Serde
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_with = "3.9.0"
