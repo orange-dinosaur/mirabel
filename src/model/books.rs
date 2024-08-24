@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 use sea_orm::ActiveValue;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -17,6 +17,8 @@ pub struct BookToSave {
     pub book_id: String,
     pub user_id: String,
     pub reading_status: Option<String>,
+    pub reading_start_date: Option<NaiveDate>,
+    pub reading_end_date: Option<NaiveDate>,
     pub book_type: Option<String>,
     pub tags: Option<Vec<String>>,
     pub rating: Option<f32>,
@@ -37,6 +39,12 @@ impl BookToSave {
         // check if the optional fields are set and update the active model
         if let Some(reading_status) = self.reading_status.clone() {
             book_to_save.reading_status = ActiveValue::Set(Some(reading_status));
+        };
+        if let Some(reading_start_date) = self.reading_start_date {
+            book_to_save.reading_start_date = ActiveValue::Set(Some(reading_start_date));
+        };
+        if let Some(reading_end_date) = self.reading_end_date {
+            book_to_save.reading_end_date = ActiveValue::Set(Some(reading_end_date));
         };
         if let Some(book_type) = self.book_type.clone() {
             book_to_save.book_type = ActiveValue::Set(Some(book_type));
@@ -64,6 +72,8 @@ impl BookToSave {
 #[serde(rename_all = "camelCase")]
 pub struct BookToUpdate {
     pub reading_status: Option<String>,
+    pub reading_start_date: Option<NaiveDate>,
+    pub reading_end_date: Option<NaiveDate>,
     pub book_type: Option<String>,
     pub tags: Option<Vec<String>>,
     pub rating: Option<f32>,
@@ -80,6 +90,12 @@ impl BookToUpdate {
         // check if the optional fields are set and update the active model accordingly
         if let Some(reading_status) = self.reading_status.clone() {
             book_to_update.reading_status = ActiveValue::Set(Some(reading_status));
+        };
+        if let Some(reading_start_date) = self.reading_start_date {
+            book_to_update.reading_start_date = ActiveValue::Set(Some(reading_start_date));
+        };
+        if let Some(reading_end_date) = self.reading_end_date {
+            book_to_update.reading_end_date = ActiveValue::Set(Some(reading_end_date));
         };
         if let Some(book_type) = self.book_type.clone() {
             book_to_update.book_type = ActiveValue::Set(Some(book_type));
@@ -121,6 +137,8 @@ pub struct BookFull {
     pub language: String,
     pub cover: String,
     pub reading_status: String,
+    pub reading_start_date: NaiveDate,
+    pub reading_end_date: NaiveDate,
     pub book_type: String,
     pub tags: Vec<String>,
     pub rating: f32,
@@ -145,6 +163,8 @@ impl Default for BookFull {
             language: "".to_string(),
             cover: "".to_string(),
             reading_status: "".to_string(),
+            reading_start_date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
+            reading_end_date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
             book_type: "".to_string(),
             tags: vec![],
             rating: 0.0,
@@ -182,6 +202,8 @@ impl BookFull {
             language: book_api_response.get_publisher(),
             cover: book_api_response.get_publisher(),
             reading_status: book_db.reading_status.unwrap_or_default(),
+            reading_start_date: book_db.reading_start_date.unwrap_or_default(),
+            reading_end_date: book_db.reading_end_date.unwrap_or_default(),
             book_type: book_db.book_type.unwrap_or_default(),
             tags: book_db.tags.unwrap_or_default(),
             rating: book_db.rating.unwrap_or_default() as f32,

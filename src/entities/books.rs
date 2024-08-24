@@ -25,6 +25,8 @@ pub struct Model {
     pub notes: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub library_id: Option<String>,
+    pub reading_start_date: Option<Date>,
+    pub reading_end_date: Option<Date>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
