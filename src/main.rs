@@ -10,9 +10,17 @@ mod server;
 use api::routes::books::books_routes;
 use axum::Router;
 use model::ModelManager;
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() {
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        /* .with_target(false) */
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     // Initialize the ModelManager
     let model_manager = match ModelManager::new().await {
         Ok(model_manager) => model_manager,
@@ -27,7 +35,7 @@ async fn main() {
 
     // Start the Axum server
     match server::run(mirabel_routes).await {
-        Ok(res) => println!("{:?}", res),
+        Ok(res) => info!("{:?}", res),
         Err(e) => {
             panic!("Error starting server: {:?}", e);
         }

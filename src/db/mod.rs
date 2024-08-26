@@ -3,8 +3,6 @@ use sea_orm::{Database, DatabaseConnection};
 use std::env;
 
 pub async fn connect_to_db() -> Result<DatabaseConnection> {
-    println!("Connecting to the database...");
-
     let db_url = match env::var_os("DATABASE_URL") {
         Some(v) => v.into_string().unwrap(),
         None => panic!("missing env var: $DATABASE_URL"),

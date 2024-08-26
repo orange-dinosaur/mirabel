@@ -1,5 +1,6 @@
 use crate::{db::connect_to_db, error::Result};
 use sea_orm::DatabaseConnection;
+use tracing::info;
 
 pub mod books;
 pub mod books_api;
@@ -13,7 +14,7 @@ impl ModelManager {
     /// Constructor
     pub async fn new() -> Result<Self> {
         let db = connect_to_db().await?;
-        println!("Connected to the database");
+        info!("Connected to the database");
 
         Ok(ModelManager { db })
     }

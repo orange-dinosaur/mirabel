@@ -7,6 +7,8 @@ use strum_macros::AsRefStr;
 
 use crate::api::response::Response as ApiResponse;
 
+use tracing::error as tracing_error;
+
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Clone, Debug, Serialize, AsRefStr)]
@@ -68,7 +70,7 @@ impl Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        println!("--> {:<12} - Error - {self:?}", "INTO_RESPONSE");
+        tracing_error!("{:<6} - {self:?}", "ERR_RES");
 
         // return a json response with the error
         let (status, error) = self.client_status_and_error();

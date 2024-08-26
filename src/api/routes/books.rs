@@ -7,6 +7,7 @@ use axum::{
 use sea_orm::{
     entity::prelude::Uuid, ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter,
 };
+use tracing::info;
 
 use crate::{
     api::response::Response,
@@ -33,7 +34,7 @@ async fn save_book(
     State(model_manager): State<ModelManager>,
     Json(book_to_save): Json<BookToSave>,
 ) -> Result<Json<Response<Model>>> {
-    println!("--> {:<12} - save_book - ", "POST");
+    info!("{:<6} - save_book", "POST");
 
     let book = book_to_save.to_active_model();
 
@@ -58,7 +59,7 @@ async fn get_user_books(
     State(model_manager): State<ModelManager>,
     Path(user_id): Path<String>,
 ) -> Result<Json<Response<UserBooks>>> {
-    println!("--> {:<12} - get_user_books - ", "GET");
+    info!("{:<6} - get_user_books", "GET");
 
     let db_res = books::Entity::find()
         .filter(books::Column::UserId.eq(user_id.clone()))
@@ -114,7 +115,7 @@ async fn update_book(
     Path((user_id, id)): Path<(String, String)>,
     Json(book_to_update): Json<BookToUpdate>,
 ) -> Result<Json<Response<String>>> {
-    println!("--> {:<12} - update_book - ", "UPDATE");
+    info!("{:<6} - update_book", "UPDATE");
 
     // check if the id can be parsed into a Uuid
     let id_to_search = match Uuid::parse_str(&id) {
@@ -160,7 +161,7 @@ async fn delete_book(
     State(model_manager): State<ModelManager>,
     Path((user_id, id)): Path<(String, String)>,
 ) -> Result<Json<Response<String>>> {
-    println!("--> {:<12} - delete_book - ", "DELETE");
+    info!("{:<6} - delete_book", "DELETE");
 
     // check if the id can be parsed into a Uuid
     let id_to_search = match Uuid::parse_str(&id) {
