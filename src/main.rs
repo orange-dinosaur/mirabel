@@ -10,6 +10,7 @@ mod server;
 use api::routes::books::books_routes;
 use axum::Router;
 use model::ModelManager;
+use server::cors::set_cors;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -29,9 +30,13 @@ async fn main() {
         }
     };
 
+    // Initialize Cors
+    let cors = set_cors();
+
     // Initialize the routes
-    let mirabel_routes: Router =
-        Router::new().nest("/api/v0/", books_routes(model_manager.clone()));
+    let mirabel_routes: Router = Router::new()
+        .nest("/api/v0/", books_routes(model_manager.clone()))
+        .layer(cors);
 
     // Start the Axum server
     match server::run(mirabel_routes).await {

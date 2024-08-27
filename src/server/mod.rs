@@ -1,3 +1,5 @@
+pub mod cors;
+
 use axum::Router;
 use tracing::{error as tracing_error, info};
 
