@@ -125,6 +125,7 @@ impl BookToUpdate {
 pub struct BookFull {
     pub id: String,
     pub book_id: String,
+    pub user_id: String,
     pub title: String,
     pub authors: Vec<String>,
     pub publisher: String,
@@ -151,6 +152,7 @@ impl Default for BookFull {
         Self {
             id: "".to_string(),
             book_id: "".to_string(),
+            user_id: "".to_string(),
             title: "".to_string(),
             authors: vec![],
             publisher: "".to_string(),
@@ -190,6 +192,7 @@ impl BookFull {
         Ok(Self {
             id: book_db.id.to_string(),
             book_id,
+            user_id: book_db.user_id,
             title: book_api_response.get_title(),
             authors: book_api_response.get_authors(),
             publisher: book_api_response.get_publisher(),

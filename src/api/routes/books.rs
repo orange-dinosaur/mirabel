@@ -85,7 +85,15 @@ async fn get_user_books(
                 ));
             }
         };
-        let url = external_books_api_url + "/" + &book_id;
+        let external_books_api_key = match std::env::var("EXTERNAL_BOOKS_API_KEY") {
+            Ok(external_books_api_key) => external_books_api_key,
+            Err(_) => {
+                return Err(Error::MissingEnvVar(
+                    "missing env var: EXTERNAL_BOOKS_API_KEY".to_string(),
+                ));
+            }
+        };
+        let url = external_books_api_url + "/" + &book_id + "?key=" + &external_books_api_key;
 
         let res = reqwest::get(&url).await;
         match res {
