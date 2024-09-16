@@ -11,10 +11,10 @@ use tracing::info;
 
 use crate::{
     api::response::Response,
-    entities::books::{self, Model},
+    entities::books::{self},
     error::Result,
     model::{
-        books::{BookFull, BookToSave, BookToUpdate, UserBooks},
+        books::{BookFull, BookId, BookToSave, BookToUpdate, UserBooks},
         books_api::BooksApiResponse,
         ModelManager,
     },
@@ -33,7 +33,7 @@ pub fn books_routes(model_manager: ModelManager) -> Router {
 async fn save_book(
     State(model_manager): State<ModelManager>,
     Json(book_to_save): Json<BookToSave>,
-) -> Result<Json<Response<Model>>> {
+) -> Result<Json<Response<BookId>>> {
     info!("{:<6} - save_book", "POST");
 
     let book = book_to_save.to_active_model();
@@ -42,12 +42,13 @@ async fn save_book(
     let book = book.insert(model_manager.db()).await;
     match book {
         Ok(b) => {
-            // return the book created
-
-            let res = Response::<Model>::new_success(
+            // return only the id of the book created
+            let res = Response::new_success(
                 201,
                 Some("Book created successfully!".to_string()),
-                Some(b),
+                Some(BookId {
+                    id: b.id.to_string(),
+                }),
             );
             Ok(Json(res))
         }

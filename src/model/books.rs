@@ -13,6 +13,13 @@ use super::books_api::BooksApiResponse;
 // region - BookToSave
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BookId {
+    pub id: String,
+}
+
+// region - BookToSave
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BookToSave {
     pub book_id: String,
     pub user_id: String,
